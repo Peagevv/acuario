@@ -1,0 +1,133 @@
+body {
+    background: linear-gradient(135deg, #e3f2fd 0%, #bbdefb 100%);
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    min-height: 100vh;
+}
+
+.navbar-brand {
+    font-weight: bold;
+    font-size: 1.5rem;
+}
+
+.card {
+    box-shadow: 0 0.5rem 1rem rgba(0, 0, 0, 0.15);
+    border: none;
+    border-radius: 1rem;
+    margin-bottom: 1.5rem;
+    background: rgba(255, 255, 255, 0.95);
+}
+
+.control-btn {
+    transition: all 0.3s;
+    border: none;
+    border-radius: 0.5rem;
+    padding: 1rem;
+}
+
+.control-btn:hover {
+    transform: translateY(-3px);
+    box-shadow: 0 0.5rem 1.5rem rgba(0, 0, 0, 0.2);
+}
+
+#currentStatus {
+    font-weight: bold;
+    text-shadow: 1px 1px 2px rgba(0,0,0,0.1);
+}
+
+@keyframes highlight {
+    0% { background-color: #e3f2fd; }
+    100% { background-color: transparent; }
+}
+
+.highlight {
+    animation: highlight 1.5s ease;
+}
+
+.badge {
+    font-size: 0.8rem;
+    padding: 0.5em 0.8em;
+}
+
+.table th {
+    background: linear-gradient(135deg, #4fc3f7 0%, #29b6f6 100%);
+    color: white;
+    border: none;
+}
+
+/* Notificaciones interactivas */
+.alert {
+    border-left: 4px solid transparent;
+    border-radius: 8px;
+    margin-bottom: 0.5rem;
+}
+
+.alert-danger {
+    border-left-color: #dc3545;
+    background: linear-gradient(135deg, #fff5f5 0%, #ffeaea 100%);
+}
+
+.alert-warning {
+    border-left-color: #ffc107;
+    background: linear-gradient(135deg, #fff9e6 0%, #fff3cd 100%);
+}
+
+.alert-info {
+    border-left-color: #0dcaf0;
+    background: linear-gradient(135deg, #e6f7ff 0%, #d1f2ff 100%);
+}
+
+.alert-success {
+    border-left-color: #198754;
+    background: linear-gradient(135deg, #f0fff4 0%, #e6ffe6 100%);
+}
+
+/* Botones dentro de alertas */
+.alert .btn {
+    font-size: 0.8rem;
+    padding: 0.25rem 0.75rem;
+    margin: 0 0.25rem;
+}
+
+/* Contenedor de notificaciones */
+#notificacionesContainer {
+    max-height: 300px;
+    overflow-y: auto;
+}
+
+/* Estados de dispositivos */
+.status-indicator {
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    display: inline-block;
+    margin-right: 0.5rem;
+}
+
+.status-online {
+    background-color: #28a745;
+}
+
+.status-offline {
+    background-color: #dc3545;
+}
+
+.status-warning {
+    background-color: #ffc107;
+}
+
+/* Responsive */
+@media (max-width: 576px) {
+    .control-btn {
+        font-size: 0.8rem;
+        padding: 0.5rem;
+    }
+    
+    .badge {
+        font-size: 0.7rem;
+    }
+    
+    .alert .btn {
+        font-size: 0.7rem;
+        padding: 0.2rem 0.5rem;
+    }
+}
