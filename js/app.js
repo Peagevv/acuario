@@ -55,7 +55,8 @@ async function initAdmin(){
       estado: document.getElementById('estado').value,
       ph_actual: parseFloat(document.getElementById('ph_actual').value) || 0,
       ph_objetivo: parseFloat(document.getElementById('ph_objetivo').value) || 7,
-      automatico: document.getElementById('automatico').value === 'true'
+      automatico: document.getElementById('automatico').value === 'true',
+      ip: document.getElementById('ip').value  // <- nuevo campo
     };
     try {
       if (id) {
@@ -73,10 +74,10 @@ async function initAdmin(){
 
 async function renderDevices(){
   const tbody = document.getElementById('devicesTbody');
-  tbody.innerHTML = '<tr><td colspan="7">Cargando...</td></tr>';
+  tbody.innerHTML = '<tr><td colspan="8">Cargando...</td></tr>';
   try {
     const devices = await apiGet(DISPOSITIVOS_URL);
-    if (!devices.length) { tbody.innerHTML = '<tr><td colspan="7">No hay dispositivos</td></tr>'; return; }
+    if (!devices.length) { tbody.innerHTML = '<tr><td colspan="8">No hay dispositivos</td></tr>'; return; }
     tbody.innerHTML = '';
     devices.forEach(d=>{
       const tr = document.createElement('tr');
@@ -87,6 +88,7 @@ async function renderDevices(){
         <td>${escapeHtml(d.estado||'')}</td>
         <td>${d.ph_actual ?? '-'} / ${d.ph_objetivo ?? '-'}</td>
         <td>${d.automatico ? 'true' : 'false'}</td>
+        <td>${escapeHtml(d.ip || '')}</td>
         <td>
           <button class="btn btn-sm btn-primary btn-edit" data-id="${d.id}">Editar</button>
           <button class="btn btn-sm btn-danger btn-delete" data-id="${d.id}">Borrar</button>
@@ -107,6 +109,7 @@ async function renderDevices(){
         document.getElementById('ph_actual').value = d.ph_actual ?? '';
         document.getElementById('ph_objetivo').value = d.ph_objetivo ?? '';
         document.getElementById('automatico').value = d.automatico ? 'true' : 'false';
+        document.getElementById('ip').value = d.ip || '';  // <- cargar IP
         document.getElementById('formArea').classList.remove('d-none');
       };
     });
@@ -120,7 +123,7 @@ async function renderDevices(){
     });
 
   } catch (err) {
-    tbody.innerHTML = `<tr><td colspan="7">Error: ${err.message}</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="8">Error: ${err.message}</td></tr>`;
   }
 }
 
@@ -153,6 +156,7 @@ async function initControl(){
     const d = await apiGet(`${DISPOSITIVOS_URL}/${id}`);
     deviceInfo.innerHTML = `
       <p><strong>${escapeHtml(d.nombre)}</strong> — ${escapeHtml(d.tipo)} — ${escapeHtml(d.ubicacion||'')}</p>
+      <p>IP: ${escapeHtml(d.ip || 'No asignada')}</p>
       <p>pH actual: <span id="currentPh">${d.ph_actual ?? '-'}</span> — pH objetivo: <span id="targetPh">${d.ph_objetivo ?? '-'}</span></p>
     `;
     controlsArea.classList.remove('d-none');
