@@ -19,6 +19,9 @@
       box-shadow: 0 4px 8px rgba(0,0,0,0.1);
       margin-bottom: 10px;
     }
+    .btn-dosificador {
+      transition: all 0.3s ease;
+    }
   </style>
 </head>
 <body class="bg-light d-flex flex-column min-vh-100">
@@ -55,8 +58,10 @@
               <!-- SE ELIMINÓ EL INTERRUPTOR DE ESTADO DEL DISPOSITIVO -->
 
               <div class="mb-2">
-                <label class="form-label">Activar dosificador</label>
-                <button id="btnActivarDos" class="btn btn-warning">Activar dosificador ahora</button>
+                <label class="form-label">Control de dosificador</label>
+                <button id="btnActivarDos" class="btn btn-warning btn-dosificador">Activar dosificador ahora</button>
+                <button id="btnDesactivarDos" class="btn btn-danger btn-dosificador d-none">Desactivar dosificador</button>
+                <div id="timerInfo" class="mt-2 small text-muted"></div>
               </div>
 
               <!-- SE ELIMINÓ EL CONTENEDOR DE ALERTAS LOCAL -->
@@ -71,7 +76,7 @@
           <div class="card-body">
             <h5>Últimos registros del dispositivo seleccionado</h5>
             <table class="table table-sm" id="lastRegsTable">
-              <thead><tr><th>pH</th><th>Dosificador</th><th>Timestamp</th></tr></thead>
+              <thead><tr><th>pH</th><th>Dosificador</th><th>Estado</th><th>Timestamp</th></tr></thead>
               <tbody id="lastRegsTbody"></tbody>
             </table>
           </div>
@@ -96,11 +101,12 @@
                     <th>pH</th>
                     <th>Estado pH</th>
                     <th>Dosificador</th>
+                    <th>Estado</th>
                     <th>Timestamp</th>
                   </tr>
                 </thead>
                 <tbody id="allRegsTbody">
-                  <tr><td colspan="8" class="text-center">Cargando registros...</td></tr>
+                  <tr><td colspan="9" class="text-center">Cargando registros...</td></tr>
                 </tbody>
               </table>
             </div>

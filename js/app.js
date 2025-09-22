@@ -1,4 +1,4 @@
-// app.js - Código unificado para Acuario IoT (con polling para tabla de registros)
+// app.js - Código unificado para Acuario IoT (con control de dosificador mejorado)
 
 // Constantes de la API
 const API_BASE = 'https://68ccc004da4697a7f3036e64.mockapi.io/api/v1';
@@ -12,6 +12,10 @@ let isFirstNotification = true;
 
 // Variable para controlar el intervalo de polling de la tabla
 let allRegistrosInterval = null;
+
+// Variable para controlar el temporizador del dosificador
+let dosificadorTimer = null;
+let tiempoRestante = 0;
 
 /* ----------------- UTILIDADES ----------------- */
 async function apiGet(url) {
@@ -48,6 +52,58 @@ function escapeHtml(text) {
   return String(text).replace(/[&<>"']/g, s => {
     return ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' })[s];
   });
+}
+
+/* ----------------- CONTROL DE DOSIFICADOR CON TEMPORIZADOR ----------------- */
+function iniciarTemporizadorDosificador(deviceId) {
+  // Limpiar temporizador existente
+  if (dosificadorTimer) {
+    clearInterval(dosificadorTimer);
+  }
+  
+  tiempoRestante = 10; // 10 segundos
+  
+  const btnActivar = document.getElementById('btnActivarDos');
+  const btnDesactivar = document.getElementById('btnDesactivarDos');
+  const timerInfo = document.getElementById('timerInfo');
+  
+  // Ocultar botón de activar y mostrar botón de desactivar
+  btnActivar.classList.add('d-none');
+  btnDesactivar.classList.remove('d-none');
+  
+  // Actualizar información del temporizador
+  timerInfo.textContent = `Dosificador activo. Tiempo restante: ${tiempoRestante} segundos`;
+  timerInfo.className = 'mt-2 small text-info';
+  
+  dosificadorTimer = setInterval(async () => {
+    tiempoRestante--;
+    
+    if (tiempoRestante <= 0) {
+      // Tiempo completado, mostrar botón de desactivar
+      timerInfo.textContent = 'Dosificador activo. Listo para desactivar.';
+      timerInfo.className = 'mt-2 small text-warning';
+      clearInterval(dosificadorTimer);
+    } else {
+      timerInfo.textContent = `Dosificador activo. Tiempo restante: ${tiempoRestante} segundos`;
+    }
+  }, 1000);
+}
+
+function desactivarDosificador() {
+  if (dosificadorTimer) {
+    clearInterval(dosificadorTimer);
+    dosificadorTimer = null;
+  }
+  
+  const btnActivar = document.getElementById('btnActivarDos');
+  const btnDesactivar = document.getElementById('btnDesactivarDos');
+  const timerInfo = document.getElementById('timerInfo');
+  
+  // Ocultar botón de desactivar y mostrar botón de activar
+  btnDesactivar.classList.add('d-none');
+  btnActivar.classList.remove('d-none');
+  timerInfo.textContent = 'Dosificador inactivo. Puede activarlo cuando sea necesario.';
+  timerInfo.className = 'mt-2 small text-muted';
 }
 
 /* ----------------- ALERTAS GLOBALES CON TEMPORIZADOR ----------------- */
@@ -152,7 +208,7 @@ function startNotificationTimer() {
   refreshGlobalAlerts();
 }
 
-/* ----------------- REGISTROS GLOBALES - CORREGIDO ----------------- */
+/* ----------------- REGISTROS GLOBALES - MEJORADO ----------------- */
 async function refreshAllRegistros() {
   const tbody = document.getElementById('allRegsTbody');
   if (!tbody) return;
@@ -162,7 +218,7 @@ async function refreshAllRegistros() {
     const registros = await apiGet(`${REGISTROS_URL}?sortBy=timestamp&order=desc&limit=10`);
     
     if (!registros.length) {
-      tbody.innerHTML = '<tr><td colspan="8" class="text-center">No hay registros</td></tr>';
+      tbody.innerHTML = '<tr><td colspan="9" class="text-center">No hay registros</td></tr>';
       return;
     }
 
@@ -179,7 +235,7 @@ async function refreshAllRegistros() {
     const registrosValidos = registros.filter(r => dispositivosMap[r.dispositivo_id]);
     
     if (!registrosValidos.length) {
-      tbody.innerHTML = '<tr><td colspan="8" class="text-center">No hay registros válidos</td></tr>';
+      tbody.innerHTML = '<tr><td colspan="9" class="text-center">No hay registros válidos</td></tr>';
       return;
     }
 
@@ -207,6 +263,10 @@ async function refreshAllRegistros() {
         estadoClass = 'text-muted';
       }
 
+      // Determinar estado del dosificador
+      const estadoDosificador = r.dosificador_activado ? 'Activo' : 'Inactivo';
+      const estadoDosificadorClass = r.dosificador_activado ? 'text-success fw-bold' : 'text-secondary';
+
       const tr = document.createElement('tr');
       tr.innerHTML = `
         <td>${escapeHtml(dispositivo.nombre)}</td>
@@ -216,6 +276,7 @@ async function refreshAllRegistros() {
         <td>${ph}</td>
         <td class="${estadoClass}">${estadoPh}</td>
         <td>${r.dosificador_activado ? 'Si' : 'No'}</td>
+        <td class="${estadoDosificadorClass}">${estadoDosificador}</td>
         <td>${new Date(r.timestamp).toLocaleString()}</td>
       `;
       tbody.appendChild(tr);
@@ -223,7 +284,7 @@ async function refreshAllRegistros() {
 
   } catch (err) {
     console.error('Error al cargar registros globales:', err);
-    tbody.innerHTML = '<tr><td colspan="8" class="text-center text-danger">Error al cargar registros</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="9" class="text-center text-danger">Error al cargar registros</td></tr>';
   }
 }
 
@@ -260,11 +321,38 @@ window.activateDosificador = async function(deviceId) {
       timestamp: new Date().toISOString()
     };
     await apiPost(REGISTROS_URL, payload);
-    alert(`Dosificador activado para ${d.nombre}.`);
+    alert(`Dosificador activado para ${d.nombre}. Se desactivará automáticamente después de 10 segundos.`);
+    
+    // Iniciar temporizador para mostrar botón de desactivar
+    iniciarTemporizadorDosificador(deviceId);
+    
     refreshGlobalAlerts();
     refreshAllRegistros();
   } catch (err) {
     alert('Error al activar dosificador: ' + err.message);
+  }
+};
+
+/* ----------------- DESACTIVAR DOSIFICADOR ----------------- */
+window.desactivateDosificador = async function(deviceId) {
+  try {
+    const d = await apiGet(`${DISPOSITIVOS_URL}/${deviceId}`);
+    const payload = {
+      dispositivo_id: deviceId,
+      ph: d.ph_actual ?? null,
+      dosificador_activado: false,
+      timestamp: new Date().toISOString()
+    };
+    await apiPost(REGISTROS_URL, payload);
+    alert(`Dosificador desactivado para ${d.nombre}.`);
+    
+    // Desactivar temporizador y restaurar botón
+    desactivarDosificador();
+    
+    refreshGlobalAlerts();
+    refreshAllRegistros();
+  } catch (err) {
+    alert('Error al desactivar dosificador: ' + err.message);
   }
 };
 
@@ -379,15 +467,17 @@ async function renderDevices(){
 
 /* ----------------- LÓGICA CONTROL ----------------- */
 let controlInterval = null;
+let currentDeviceId = null;
 
 async function initControl(){
   const select = document.getElementById('selectDevice');
   const deviceInfo = document.getElementById('deviceInfo');
   const controlsArea = document.getElementById('controlsArea');
   const btnActivarDos = document.getElementById('btnActivarDos');
+  const btnDesactivarDos = document.getElementById('btnDesactivarDos');
   const lastRegsTbody = document.getElementById('lastRegsTbody');
 
-  if (!select || !deviceInfo || !controlsArea || !btnActivarDos || !lastRegsTbody) return;
+  if (!select || !deviceInfo || !controlsArea || !btnActivarDos || !btnDesactivarDos || !lastRegsTbody) return;
 
   async function loadDevicesToSelect(){
     const devices = await apiGet(DISPOSITIVOS_URL);
@@ -403,9 +493,12 @@ async function initControl(){
   select.onchange = async () => {
     clearInterval(controlInterval);
     const id = select.value;
+    currentDeviceId = id;
+    
     if (!id) { 
       deviceInfo.innerHTML = ''; 
       controlsArea.classList.add('d-none'); 
+      desactivarDosificador(); // Resetear estado del dosificador
       return; 
     }
     
@@ -417,6 +510,9 @@ async function initControl(){
     `;
     
     controlsArea.classList.remove('d-none');
+    
+    // Resetear estado del dosificador al cambiar dispositivo
+    desactivarDosificador();
     
     // refresco cada 2s: actualizar ph y últimos registros
     async function refresh() {
@@ -430,7 +526,14 @@ async function initControl(){
         lastRegsTbody.innerHTML = '';
         regs.forEach(r => {
           const tr = document.createElement('tr');
-          tr.innerHTML = `<td>${r.ph ?? '-'}</td><td>${r.dosificador_activado ? 'Si' : 'No'}</td><td>${new Date(r.timestamp).toLocaleString()}</td>`;
+          const estadoDosificador = r.dosificador_activado ? 'Activo' : 'Inactivo';
+          const estadoClass = r.dosificador_activado ? 'text-success fw-bold' : 'text-secondary';
+          tr.innerHTML = `
+            <td>${r.ph ?? '-'}</td>
+            <td>${r.dosificador_activado ? 'Si' : 'No'}</td>
+            <td class="${estadoClass}">${estadoDosificador}</td>
+            <td>${new Date(r.timestamp).toLocaleString()}</td>
+          `;
           lastRegsTbody.appendChild(tr);
         });
 
@@ -442,7 +545,7 @@ async function initControl(){
     await refresh();
     controlInterval = setInterval(refresh, 2000);
     
-    // botón activar dosificador: crear un registro simulando activación
+    // botón activar dosificador
     btnActivarDos.onclick = async () => {
       try {
         // obtener el ph actual (último valor)
@@ -454,11 +557,39 @@ async function initControl(){
           timestamp: new Date().toISOString()
         };
         await apiPost(REGISTROS_URL, payload);
-        alert('Dosificador activado: se generó un registro.');
+        alert('Dosificador activado. Se desactivará automáticamente después de 10 segundos.');
+        
+        // Iniciar temporizador
+        iniciarTemporizadorDosificador(id);
+        
         // Refrescar también la tabla global
         refreshAllRegistros();
       } catch (err) { 
         alert('Error al activar dosificador: '+err.message); 
+      }
+    };
+    
+    // botón desactivar dosificador
+    btnDesactivarDos.onclick = async () => {
+      try {
+        // obtener el ph actual (último valor)
+        const dcur = await apiGet(`${DISPOSITIVOS_URL}/${id}`);
+        const payload = {
+          dispositivo_id: id,
+          ph: dcur.ph_actual ?? null,
+          dosificador_activado: false,
+          timestamp: new Date().toISOString()
+        };
+        await apiPost(REGISTROS_URL, payload);
+        alert('Dosificador desactivado.');
+        
+        // Desactivar temporizador
+        desactivarDosificador();
+        
+        // Refrescar también la tabla global
+        refreshAllRegistros();
+      } catch (err) { 
+        alert('Error al desactivar dosificador: '+err.message); 
       }
     };
   };
@@ -505,7 +636,14 @@ async function initMonitor(){
       monitorLast10.innerHTML = '';
       last10desc.forEach(r => {
         const tr = document.createElement('tr');
-        tr.innerHTML = `<td>${r.ph ?? '-'}</td><td>${r.dosificador_activado ? 'Si' : 'No'}</td><td>${new Date(r.timestamp).toLocaleString()}</td>`;
+        const estadoDosificador = r.dosificador_activado ? 'Activo' : 'Inactivo';
+        const estadoClass = r.dosificador_activado ? 'text-success fw-bold' : 'text-secondary';
+        tr.innerHTML = `
+          <td>${r.ph ?? '-'}</td>
+          <td>${r.dosificador_activado ? 'Si' : 'No'}</td>
+          <td class="${estadoClass}">${estadoDosificador}</td>
+          <td>${new Date(r.timestamp).toLocaleString()}</td>
+        `;
         monitorLast10.appendChild(tr);
       });
 
@@ -580,4 +718,7 @@ document.addEventListener('DOMContentLoaded', () => {
 // Detener el polling cuando se cambia de página o se cierra la pestaña
 window.addEventListener('beforeunload', () => {
   stopAllRegistrosPolling();
+  if (dosificadorTimer) {
+    clearInterval(dosificadorTimer);
+  }
 });
