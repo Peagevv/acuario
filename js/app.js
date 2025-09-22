@@ -1,4 +1,4 @@
-// app.js - Código unificado para Acuario IoT (con control de dosificador mejorado)
+// app.js - Código unificado para Acuario IoT (con cambio automático de pH)
 
 // Constantes de la API
 const API_BASE = 'https://68ccc004da4697a7f3036e64.mockapi.io/api/v1';
@@ -54,8 +54,25 @@ function escapeHtml(text) {
   });
 }
 
-/* ----------------- CONTROL DE DOSIFICADOR CON TEMPORIZADOR ----------------- */
-function iniciarTemporizadorDosificador(deviceId) {
+/* ----------------- SIMULACIÓN DE CAMBIO DE pH ----------------- */
+function simularCambioPh(phActual, phObjetivo) {
+  // Calcular la diferencia entre el pH actual y el objetivo
+  const diferencia = phObjetivo - phActual;
+  
+  // Si la diferencia es muy pequeña, no hacer cambio
+  if (Math.abs(diferencia) < 0.1) {
+    return phObjetivo;
+  }
+  
+  // Ajustar el pH en la dirección correcta (máximo 0.3 por activación)
+  const ajuste = Math.sign(diferencia) * Math.min(Math.abs(diferencia), 0.3);
+  
+  // Redondear a 1 decimal
+  return Math.round((phActual + ajuste) * 10) / 10;
+}
+
+/* ----------------- CONTROL DE DOSIFICADOR CON TEMPORIZADOR Y CAMBIO DE pH ----------------- */
+function iniciarTemporizadorDosificador(deviceId, phActual, phObjetivo) {
   // Limpiar temporizador existente
   if (dosificadorTimer) {
     clearInterval(dosificadorTimer);
@@ -72,19 +89,79 @@ function iniciarTemporizadorDosificador(deviceId) {
   btnDesactivar.classList.remove('d-none');
   
   // Actualizar información del temporizador
-  timerInfo.textContent = `Dosificador activo. Tiempo restante: ${tiempoRestante} segundos`;
+  timerInfo.textContent = `Dosificador activo. Ajustando pH... Tiempo restante: ${tiempoRestante} segundos`;
   timerInfo.className = 'mt-2 small text-info';
   
   dosificadorTimer = setInterval(async () => {
     tiempoRestante--;
     
     if (tiempoRestante <= 0) {
-      // Tiempo completado, mostrar botón de desactivar
-      timerInfo.textContent = 'Dosificador activo. Listo para desactivar.';
-      timerInfo.className = 'mt-2 small text-warning';
+      // Tiempo completado, aplicar cambio final de pH
+      const nuevoPh = simularCambioPh(phActual, phObjetivo);
+      
+      try {
+        // Actualizar el pH del dispositivo
+        const dispositivo = await apiGet(`${DISPOSITIVOS_URL}/${deviceId}`);
+        dispositivo.ph_actual = nuevoPh;
+        await apiPut(`${DISPOSITIVOS_URL}/${deviceId}`, dispositivo);
+        
+        // Crear registro final con el nuevo pH
+        const payloadFinal = {
+          dispositivo_id: deviceId,
+          ph: nuevoPh,
+          dosificador_activado: false, // Se desactiva automáticamente después del tiempo
+          timestamp: new Date().toISOString()
+        };
+        await apiPost(REGISTROS_URL, payloadFinal);
+        
+        timerInfo.textContent = `¡Proceso completado! pH ajustado a ${nuevoPh}. Dosificador desactivado.`;
+        timerInfo.className = 'mt-2 small text-success';
+        
+        // Mostrar botón de activar nuevamente
+        btnDesactivar.classList.add('d-none');
+        btnActivar.classList.remove('d-none');
+        
+        // Refrescar datos
+        refreshGlobalAlerts();
+        refreshAllRegistros();
+        
+      } catch (err) {
+        console.error('Error al actualizar pH:', err);
+        timerInfo.textContent = 'Error al ajustar pH. Dosificador desactivado.';
+        timerInfo.className = 'mt-2 small text-danger';
+      }
+      
       clearInterval(dosificadorTimer);
+    } else if (tiempoRestante === 5) {
+      // A mitad del proceso, aplicar un cambio intermedio de pH
+      const phIntermedio = simularCambioPh(phActual, phObjetivo);
+      
+      try {
+        // Actualizar el pH del dispositivo
+        const dispositivo = await apiGet(`${DISPOSITIVOS_URL}/${deviceId}`);
+        dispositivo.ph_actual = phIntermedio;
+        await apiPut(`${DISPOSITIVOS_URL}/${deviceId}`, dispositivo);
+        
+        // Crear registro intermedio
+        const payloadIntermedio = {
+          dispositivo_id: deviceId,
+          ph: phIntermedio,
+          dosificador_activado: true,
+          timestamp: new Date().toISOString()
+        };
+        await apiPost(REGISTROS_URL, payloadIntermedio);
+        
+        timerInfo.textContent = `Dosificador activo. pH ajustándose... (${phIntermedio}). Tiempo restante: ${tiempoRestante} segundos`;
+        
+        // Refrescar datos
+        refreshGlobalAlerts();
+        refreshAllRegistros();
+        
+      } catch (err) {
+        console.error('Error al actualizar pH intermedio:', err);
+      }
     } else {
-      timerInfo.textContent = `Dosificador activo. Tiempo restante: ${tiempoRestante} segundos`;
+      timerInfo.textContent = `Dosificador activo. Ajustando pH... Tiempo restante: ${tiempoRestante} segundos`;
     }
   }, 1000);
 }
@@ -314,17 +391,20 @@ function stopAllRegistrosPolling() {
 window.activateDosificador = async function(deviceId) {
   try {
     const d = await apiGet(`${DISPOSITIVOS_URL}/${deviceId}`);
-    const payload = {
+    
+    // Crear registro inicial de activación
+    const payloadInicial = {
       dispositivo_id: deviceId,
       ph: d.ph_actual ?? null,
       dosificador_activado: true,
       timestamp: new Date().toISOString()
     };
-    await apiPost(REGISTROS_URL, payload);
-    alert(`Dosificador activado para ${d.nombre}. Se desactivará automáticamente después de 10 segundos.`);
+    await apiPost(REGISTROS_URL, payloadInicial);
     
-    // Iniciar temporizador para mostrar botón de desactivar
-    iniciarTemporizadorDosificador(deviceId);
+    alert(`Dosificador activado para ${d.nombre}. El pH se ajustará automáticamente en 10 segundos.`);
+    
+    // Iniciar temporizador para cambio de pH
+    iniciarTemporizadorDosificador(deviceId, d.ph_actual, d.ph_objetivo);
     
     refreshGlobalAlerts();
     refreshAllRegistros();
@@ -550,17 +630,20 @@ async function initControl(){
       try {
         // obtener el ph actual (último valor)
         const dcur = await apiGet(`${DISPOSITIVOS_URL}/${id}`);
-        const payload = {
+        
+        // Crear registro inicial de activación
+        const payloadInicial = {
           dispositivo_id: id,
           ph: dcur.ph_actual ?? null,
           dosificador_activado: true,
           timestamp: new Date().toISOString()
         };
-        await apiPost(REGISTROS_URL, payload);
-        alert('Dosificador activado. Se desactivará automáticamente después de 10 segundos.');
+        await apiPost(REGISTROS_URL, payloadInicial);
         
-        // Iniciar temporizador
-        iniciarTemporizadorDosificador(id);
+        alert('Dosificador activado. El pH se ajustará automáticamente en 10 segundos.');
+        
+        // Iniciar temporizador para cambio de pH
+        iniciarTemporizadorDosificador(id, dcur.ph_actual, dcur.ph_objetivo);
         
         // Refrescar también la tabla global
         refreshAllRegistros();
