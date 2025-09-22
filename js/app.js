@@ -152,7 +152,7 @@ function startNotificationTimer() {
   refreshGlobalAlerts();
 }
 
-/* ----------------- REGISTROS GLOBALES ----------------- */
+/* ----------------- REGISTROS GLOBALES - CORREGIDO ----------------- */
 async function refreshAllRegistros() {
   const tbody = document.getElementById('allRegsTbody');
   if (!tbody) return;
@@ -174,8 +174,17 @@ async function refreshAllRegistros() {
     });
 
     tbody.innerHTML = '';
-    registros.forEach(r => {
-      const dispositivo = dispositivosMap[r.dispositivo_id] || {};
+    
+    // Filtrar y mostrar solo registros que tienen un dispositivo válido
+    const registrosValidos = registros.filter(r => dispositivosMap[r.dispositivo_id]);
+    
+    if (!registrosValidos.length) {
+      tbody.innerHTML = '<tr><td colspan="8" class="text-center">No hay registros válidos</td></tr>';
+      return;
+    }
+
+    registrosValidos.forEach(r => {
+      const dispositivo = dispositivosMap[r.dispositivo_id];
       const ph = r.ph ?? '-';
       
       // Determinar el estado del pH
@@ -200,8 +209,8 @@ async function refreshAllRegistros() {
 
       const tr = document.createElement('tr');
       tr.innerHTML = `
-        <td>${escapeHtml(dispositivo.nombre || 'Desconocido')}</td>
-        <td>${escapeHtml(dispositivo.tipo || '')}</td>
+        <td>${escapeHtml(dispositivo.nombre)}</td>
+        <td>${escapeHtml(dispositivo.tipo)}</td>
         <td>${escapeHtml(dispositivo.ubicacion || '')}</td>
         <td>${escapeHtml(dispositivo.ip || '')}</td>
         <td>${ph}</td>
